@@ -28,7 +28,7 @@ end
 function M.update_last_edit_location()
 	-- Check if the buffer is associated with a regular file
 	local bufnr, pos = vim.api.nvim_get_current_buf(), vim.api.nvim_win_get_cursor(0)
-	local buftype = vim.api.nvim_buf_get_option(bufnr, "buftype")
+	local buftype = vim.bo[bufnr].buftype
 	if buftype ~= "" then
 		-- Exit the function if the buffer is not a regular file (e.g., it's a quickfix, terminal, etc.)
 		return
@@ -101,28 +101,27 @@ function M.goto_initial_cursor()
 	navigate_to_location(initial_cursor_position, "initial cursor")
 end
 
--- autocmds to capture the last edit location
-vim.api.nvim_exec(
-	[[
-    augroup TimewarpLastEditTracker
-        autocmd!
-        autocmd TextChanged,TextChangedI * lua require'timewarp'.update_last_edit_location()
-        autocmd TextYankPost * lua require'timewarp'.update_last_yank_location(vim.v.event)
+-- autocmds to capture the last edit and yank locations
+local augroup = vim.api.nvim_create_augroup("TimewarpLastEditTracker", { clear = true })
 
-    augroup END
-    ]],
-	false
-)
+vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+	group = augroup,
+	callback = function()
+		M.update_last_edit_location()
+	end,
+})
+
+vim.api.nvim_create_autocmd("TextYankPost", {
+	group = augroup,
+	callback = function()
+		M.update_last_yank_location(vim.v.event)
+	end,
+})
 
 -- user commands for easier usage
-vim.api.nvim_exec(
-	[[
-    command! TimewarpLastEdit lua require'timewarp'.goto_last_edit()
-    command! TimewarpLastYank lua require'timewarp'.goto_last_yank()
-    command! TimewarpReturn lua require'timewarp'.goto_initial_cursor()
-    ]],
-	false
-)
+vim.api.nvim_create_user_command("TimewarpLastEdit", M.goto_last_edit, {})
+vim.api.nvim_create_user_command("TimewarpLastYank", M.goto_last_yank, {})
+vim.api.nvim_create_user_command("TimewarpReturn", M.goto_initial_cursor, {})
 
 -- Setup function to initialize the plugin with optional configurations
 function M.setup(opts)
